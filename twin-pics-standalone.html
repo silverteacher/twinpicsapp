@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Twin Pics – Défi IA Quotidien</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0f1428 100%);
+      min-height: 100vh;
+      color: white;
+      padding: 24px;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 15% 50%, rgba(255,107,53,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 85% 80%, rgba(0,217,255,0.08) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    #root { position: relative; z-index: 1; }
+    .orb { font-family: 'Orbitron', sans-serif; }
+    .card {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .btn {
+      font-family: 'Orbitron', sans-serif;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.25s;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.15); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+    input, textarea {
+      background: rgba(0,0,0,0.35);
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: white;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      width: 100%;
+    }
+    input:focus, textarea:focus {
+      border-color: #00d9ff;
+      box-shadow: 0 0 18px rgba(0,217,255,0.25);
+    }
+    input::placeholder, textarea::placeholder { color: #555; }
+    textarea { resize: vertical; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .spin { animation: spin 1s linear infinite; }
+    .pop { animation: pop 0.5s cubic-bezier(0.175,0.885,0.32,1.275) forwards; }
+    .fadein { animation: fadeIn 0.4s ease forwards; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: #00d9ff; border-radius: 10px; }
+    @media (max-width: 860px) {
+      .main-grid { grid-template-columns: 1fr !important; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* ─── Banque d'images (90 jours) ─── */
+const DAILY_IMAGES = [
+  { url:'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=800&q=80', desc:'Scène spatiale avec astronaute dans des tons orangés et bleus', hints:['Astronaute','Espace','Couleurs vives','Science-fiction'] },
+  { url:'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80', desc:'Portrait de robot futuriste avec néons colorés', hints:['Robot','Néons','Futuriste','Portrait'] },
+  { url:'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=800&q=80', desc:'Ville cyberpunk illuminée la nuit', hints:['Cyberpunk','Ville','Néons','Nuit'] },
+  { url:'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&q=80', desc:'Créature fantastique dans une forêt enchantée', hints:['Fantasy','Créature','Forêt','Magique'] },
+  { url:'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80', desc:'Vaisseau spatial en vol dans les étoiles', hints:['Vaisseau','Étoiles','Espace','Voyage spatial'] },
+  { url:'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?w=800&q=80', desc:'Personnage manga dans un décor urbain japonais', hints:['Manga','Japon','Urbain','Personnage'] },
+  { url:'https://images.unsplash.com/photo-1635830625698-3b9bd74671ca?w=800&q=80', desc:'Scène de bataille épique avec chevaliers', hints:['Bataille','Chevaliers','Épique','Médiéval'] },
+  { url:'https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=800&q=80', desc:'Paysage alien avec deux soleils', hints:['Alien','Deux soleils','Paysage','Exotique'] },
+  { url:'https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?w=800&q=80', desc:'Château médiéval sous la pleine lune', hints:['Château','Lune','Médiéval','Nuit'] },
+  { url:'https://images.unsplash.com/photo-1616516491173-95d3e5b1ebad?w=800&q=80', desc:'Créature marine bioluminescente dans les abysses', hints:['Créature marine','Bioluminescence','Profondeur','Mystérieux'] },
+  { url:'https://images.unsplash.com/photo-1625314897518-bb4fe6e95229?w=800&q=80', desc:'Magicien lançant un sort lumineux', hints:['Magicien','Sort','Lumière','Magie'] },
+  { url:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80', desc:'Graffiti coloré et détaillé sur mur urbain', hints:['Graffiti','Couleurs','Urbain','Street art'] },
+  { url:'https://images.unsplash.com/photo-1626379953822-baec19c3accd?w=800&q=80', desc:'Pirate sur son bateau en pleine tempête', hints:['Pirate','Bateau','Tempête','Aventure'] },
+  { url:'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&q=80', desc:'Fée dans une clairière lumineuse enchantée', hints:['Fée','Clairière','Lumière','Enchantement'] },
+  { url:'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80', desc:'Mecha géant défendant une cité futuriste', hints:['Mecha','Robot géant','Cité','Défense'] },
+  { url:'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?w=800&q=80', desc:'Détective dans une ruelle sombre et pluvieuse', hints:['Détective','Ruelle','Pluie','Noir'] },
+  { url:'https://images.unsplash.com/photo-1635830625698-3b9bd74671ca?w=800&q=80', desc:'Explorateur découvrant des ruines anciennes', hints:['Explorateur','Ruines','Découverte','Archéologie'] },
+  { url:'https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=800&q=80', desc:'Sorcière dans son laboratoire mystique', hints:['Sorcière','Laboratoire','Potions','Mystique'] },
+  { url:'https://images.unsplash.com/photo-1626379953822-baec19c3accd?w=800&q=80', desc:'Course de vaisseaux dans un canyon alien', hints:['Course','Vaisseaux','Canyon','Vitesse'] },
+  { url:'https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?w=800&q=80', desc:'Druide invoquant les forces de la nature', hints:['Druide','Nature','Invocation','Éléments'] },
+  { url:'https://images.unsplash.com/photo-1616516491173-95d3e5b1ebad?w=800&q=80', desc:'Cirque fantastique avec acrobates volants', hints:['Cirque','Acrobates','Volants','Spectacle'] },
+  { url:'https://images.unsplash.com/photo-1625314897518-bb4fe6e95229?w=800&q=80', desc:'Bibliothèque infinie avec livres flottants', hints:['Bibliothèque','Infini','Livres flottants','Magie'] },
+  { url:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80', desc:'Viking naviguant vers de nouvelles terres', hints:['Viking','Navigation','Drakkar','Aventure'] },
+  { url:'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80', desc:'Musicien cyberpunk dans un club néon', hints:['Musicien','Cyberpunk','Club','Néons'] },
+  { url:'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=800&q=80', desc:'Pilote spatial dans son cockpit high-tech', hints:['Pilote','Cockpit','Spatial','High-tech'] },
+  { url:'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&q=80', desc:'Temple bouddhiste flottant dans les nuages', hints:['Temple','Bouddhiste','Flottant','Nuages'] },
+  { url:'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80', desc:'Archer elfe dans une forêt enchantée', hints:['Archer','Elfe','Forêt','Arc'] },
+  { url:'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=800&q=80', desc:'Station orbitale avec vue panoramique sur la Terre', hints:['Station orbitale','Terre','Vue spatiale','Technologie'] },
+  { url:'https://images.unsplash.com/photo-1635830625698-3b9bd74671ca?w=800&q=80', desc:'Alchimiste transformant des métaux en or', hints:['Alchimiste','Transformation','Métaux','Laboratoire'] },
+  { url:'https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=800&q=80', desc:'Ville steampunk avec dirigeables et vapeur', hints:['Steampunk','Dirigeables','Ville','Vapeur'] },
+  { url:'https://images.unsplash.com/photo-1626379953822-baec19c3accd?w=800&q=80', desc:'Gladiateur dans une arène romaine bondée', hints:['Gladiateur','Arène','Rome','Combat'] },
+  { url:'https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?w=800&q=80', desc:'Espion infiltrant un gratte-ciel nocturne', hints:['Espion','Gratte-ciel','Infiltration','Action'] },
+  { url:'https://images.unsplash.com/photo-1616516491173-95d3e5b1ebad?w=800&q=80', desc:'Pharaon majestueux dans son palais doré', hints:['Pharaon','Palais','Or','Égypte'] },
+  { url:'https://images.unsplash.com/photo-1625314897518-bb4fe6e95229?w=800&q=80', desc:'Chasseur de primes dans un saloon western', hints:['Chasseur de primes','Saloon','Western','Far West'] },
+  { url:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80', desc:'Surfeur cosmique naviguant entre les galaxies', hints:['Surfeur','Cosmique','Galaxies','Espace'] },
+  { url:'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80', desc:'Hackeuse dans une matrice de code virtuelle', hints:['Hackeuse','Matrice','Virtuel','Code'] },
+  { url:'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=800&q=80', desc:'Cavalier mystique sur un destrier ailé', hints:['Cavalier','Cheval ailé','Mystique','Vol'] },
+  { url:'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&q=80', desc:'Marché médiéval coloré et très animé', hints:['Marché','Médiéval','Coloré','Animation'] },
+  { url:'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80', desc:'Oracle mystique lisant dans les étoiles', hints:['Oracle','Étoiles','Divination','Mystique'] },
+  { url:'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=800&q=80', desc:'Barde jouant de la musique dans une taverne médiévale', hints:['Barde','Musique','Taverne','Médiéval'] },
+  { url:'https://images.unsplash.com/photo-1635830625698-3b9bd74671ca?w=800&q=80', desc:'Chamane communiquant avec les esprits de la nature', hints:['Chamane','Esprits','Rituel','Nature'] },
+  { url:'https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=800&q=80', desc:'DJ alien mixant dans un club musical spatial', hints:['DJ','Alien','Club','Musique spatiale'] },
+  { url:'https://images.unsplash.com/photo-1626379953822-baec19c3accd?w=800&q=80', desc:'Botaniste cultivant des plantes bioluminescentes étranges', hints:['Botaniste','Plantes','Bioluminescence','Laboratoire'] },
+  { url:'https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?w=800&q=80', desc:'Chevalier dragon-rider sur sa puissante monture', hints:['Chevalier','Dragon','Monture','Vol'] },
+  { url:'https://images.unsplash.com/photo-1616516491173-95d3e5b1ebad?w=800&q=80', desc:'Conteur racontant des légendes au coin du feu', hints:['Conteur','Légendes','Feu','Récit'] },
+  { url:'https://images.unsplash.com/photo-1625314897518-bb4fe6e95229?w=800&q=80', desc:'Gardien de phare solitaire sur une côte tempêtueuse', hints:['Gardien','Phare','Tempête','Côte'] },
+  { url:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80', desc:'Pêcheur de rêves capturant des songes lumineux', hints:['Pêcheur','Rêves','Songes','Onirique'] },
+  { url:'https://images.unsplash.com/photo-1618556450991-2f1af64e8191?w=800&q=80', desc:'Horloger mystérieux réparant le temps lui-même', hints:['Horloger','Temps','Horloges','Mécanique'] },
+  { url:'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80', desc:'Danseur de feu dans un spectacle nocturne intense', hints:['Danseur','Feu','Spectacle','Nuit'] },
+  { url:'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=800&q=80', desc:'Sculpteur donnant mystérieusement vie à ses créations', hints:['Sculpteur','Créations','Vie','Art'] },
+  { url:'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800&q=80', desc:'Messager céleste portant des nouvelles divines ailées', hints:['Messager','Céleste','Ailes','Divin'] },
+  { url:'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80', desc:'Chasseur de fantômes dans un manoir hanté lugubre', hints:['Chasseur','Fantômes','Manoir','Paranormal'] },
+  { url:'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?w=800&q=80', desc:'Mercenaire équipé dans une guerre cybernétique', hints:['Mercenaire','Cybernétique','Guerre','Futur'] },
+  { url:'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=800&q=80', desc:'Chef cuisinier préparant un festin royal opulent', hints:['Chef','Festin','Royal','Cuisine'] },
+  { url:'https://images.unsplash.com/photo-1635830625698-3b9bd74671ca?w=800&q=80', desc:'Dompteur courageux face à des créatures fantastiques', hints:['Dompteur','Créatures','Fantastique','Cirque'] },
+  { url:'https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=800&q=80', desc:'Guérisseur utilisant des cristaux énergétiques lumineux', hints:['Guérisseur','Cristaux','Énergie','Soin'] },
+  { url:'https://images.unsplash.com/photo-1626379953822-baec19c3accd?w=800&q=80', desc:'Voyageur temporel coincé entre deux époques différentes', hints:['Voyageur','Temps','Époques','Paradoxe'] },
+  { url:'https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?w=800&q=80', desc:'Mécanicienne talentueuse réparant des vaisseaux interstellaires', hints:['Mécanicienne','Vaisseaux','Interstellaire','Réparation'] },
+  { url:'https://images.unsplash.com/photo-1616516491173-95d3e5b1ebad?w=800&q=80', desc:'Moine guerrier discipliné maîtrisant les arts martiaux', hints:['Moine','Guerrier','Arts martiaux','Discipline'] }
+];
+
+/* ─── Helpers ─── */
+function getDailyImage() {
+  const start = new Date('2026-02-11');
+  const diffDays = Math.floor(Math.abs(new Date() - start) / 86400000);
+  return { data: DAILY_IMAGES[diffDays % DAILY_IMAGES.length], num: (diffDays % DAILY_IMAGES.length) + 1 };
+}
+
+function blobToBase64(blob) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onloadend = () => resolve({ b64: r.result.split(',')[1], mime: blob.type || 'image/jpeg' });
+    r.readAsDataURL(blob);
+  });
+}
+
+function scoreColor(s) {
+  if (s >= 80) return '#22c55e';
+  if (s >= 60) return '#eab308';
+  if (s >= 40) return '#f97316';
+  return '#ef4444';
+}
+function scoreBadge(s) {
+  if (s >= 80) return '🏆 Excellent !';
+  if (s >= 60) return '👍 Bien joué !';
+  if (s >= 40) return '🎯 Pas mal !';
+  return '💪 Continue !';
+}
+
+/* ─── Spinner ─── */
+const Spinner = ({ size = 40, color = '#00d9ff' }) => (
+  <div className="spin" style={{ width: size, height: size, border: `4px solid rgba(255,255,255,0.15)`, borderTop: `4px solid ${color}`, borderRadius: '50%' }} />
+);
+
+/* ─── App principale ─── */
+function App() {
+  const [hfToken, setHfToken]     = useState('');
+  const [tokenOk, setTokenOk]     = useState(false);
+  const [prompt, setPrompt]       = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [step, setStep]           = useState('');
+  const [genImg, setGenImg]       = useState(null);
+  const [score, setScore]         = useState(null);
+  const [history, setHistory]     = useState([]);
+  const [error, setError]         = useState('');
+
+  const { data: daily, num: dayNum } = getDailyImage();
+  const dateStr = new Date().toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+
+  useEffect(() => {
+    const h = localStorage.getItem('tpHistory');
+    if (h) setHistory(JSON.parse(h));
+    const t = localStorage.getItem('hfToken');
+    if (t) { setHfToken(t); setTokenOk(true); }
+  }, []);
+
+  const saveToken = () => {
+    const t = hfToken.trim();
+    if (!t) return;
+    localStorage.setItem('hfToken', t);
+    setTokenOk(true);
+  };
+
+  const generate = async () => {
+    if (!hfToken || !prompt.trim()) return;
+    setLoading(true); setError(''); setGenImg(null); setScore(null);
+
+    try {
+      /* 1 – Génération FLUX.1 */
+      setStep('🎨 Génération de l\'image avec FLUX.1-schnell...');
+      const hfResp = await fetch(
+        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${hfToken.trim()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs: prompt, parameters: { num_inference_steps: 4 } })
+        }
+      );
+      if (!hfResp.ok) {
+        const txt = await hfResp.text();
+        let msg = `Hugging Face ${hfResp.status}`;
+        try { const j = JSON.parse(txt); if (j.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
+      const blob = await hfResp.blob();
+      const { b64: genB64, mime: genMime } = await blobToBase64(blob);
+      setGenImg(`data:${genMime};base64,${genB64}`);
+
+      /* 2 – Scoring Claude Vision */
+      setStep('🔍 Analyse et scoring par Claude Vision...');
+      const refResp = await fetch(daily.url);
+      const refBlob = await refResp.blob();
+      const { b64: refB64, mime: refMime } = await blobToBase64(refBlob);
+
+      const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              { type:'image', source:{ type:'base64', media_type: refMime, data: refB64 } },
+              { type:'image', source:{ type:'base64', media_type: genMime, data: genB64 } },
+              { type:'text', text:`Tu es un juge expert en art visuel. Compare la PREMIÈRE image (référence) avec la SECONDE (tentative générée par IA).\n\nNote de 0 à 100 basée sur :\n- Composition (25pts)\n- Palette de couleurs (25pts)\n- Éléments clés présents (25pts)\n- Style et ambiance (25pts)\n\nRéponds UNIQUEMENT avec ce JSON exact (sans markdown) :\n{"score":75,"composition":"analyse courte en français","colors":"analyse courte en français","elements":"analyse courte en français","overall":"conclusion courte en français"}` }
+            ]
+          }]
+        })
+      });
+
+      if (!claudeResp.ok) throw new Error('Erreur Claude Vision (scoring)');
+      const cData = await claudeResp.json();
+      const raw = cData.content.find(c => c.type === 'text')?.text || '{}';
+      let analysis;
+      try {
+        analysis = JSON.parse(raw.replace(/```json\n?|```\n?/g,'').trim());
+      } catch {
+        const m = raw.match(/\{[\s\S]*\}/);
+        analysis = m ? JSON.parse(m[0]) : { score:50, composition:'N/A', colors:'N/A', elements:'N/A', overall:'Analyse indisponible' };
+      }
+      setScore(analysis);
+
+      /* Historique */
+      const entry = { prompt, score: analysis.score, overall: analysis.overall, ts: new Date().toISOString() };
+      const nh = [entry, ...history].slice(0, 10);
+      setHistory(nh);
+      localStorage.setItem('tpHistory', JSON.stringify(nh));
+
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+    } finally {
+      setLoading(false); setStep('');
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ textAlign:'center', marginBottom:36 }}>
+        <h1 className="orb" style={{ fontSize:'clamp(2.2rem,7vw,4.5rem)', fontWeight:900, background:'linear-gradient(135deg,#ff6b35,#00d9ff,#ffd700)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
+          🎮 TWIN PICS
+        </h1>
+        <p style={{ color:'#777', marginTop:8, fontSize:'1.05rem' }}>Défi Quotidien de Génération d'Images IA</p>
+      </div>
+
+      {/* ── CLEF API ── */}
+      {!tokenOk ? (
+        <div className="card fadein" style={{ maxWidth:580, margin:'0 auto 32px', border:'1px solid rgba(0,217,255,0.35)' }}>
+          <h3 className="orb" style={{ color:'#00d9ff', marginBottom:10, fontSize:'1rem' }}>🔑 Clé API Hugging Face</h3>
+          <p style={{ color:'#aaa', fontSize:'0.88rem', marginBottom:16, lineHeight:1.6 }}>
+            Entrez votre token HF pour générer des images avec FLUX.1-schnell.<br/>
+            <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener" style={{ color:'#00d9ff' }}>Obtenir un token →</a>
+          </p>
+          <div style={{ display:'flex', gap:10 }}>
+            <input type="password" value={hfToken} onChange={e => setHfToken(e.target.value)} placeholder="hf_xxxxxxxxxxxxxxxx"
+              onKeyDown={e => e.key === 'Enter' && saveToken()} />
+            <button className="btn" onClick={saveToken}
+              style={{ background:'linear-gradient(135deg,#00d9ff,#0095bb)', color:'white', padding:'12px 22px', borderRadius:12, fontSize:'0.9rem', whiteSpace:'nowrap' }}>
+              Valider
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:24 }}>
+          <span style={{ color:'#22c55e', fontSize:'0.9rem' }}>✅ Token Hugging Face configuré</span>
+          <button className="btn" onClick={() => { setTokenOk(false); localStorage.removeItem('hfToken'); }}
+            style={{ background:'rgba(255,255,255,0.08)', color:'#aaa', padding:'5px 14px', borderRadius:8, fontSize:'0.78rem' }}>
+            Modifier
+          </button>
+        </div>
+      )}
+
+      {/* ── BANDEAU INFO ── */}
+      <div style={{ marginBottom:24, background:'rgba(0,217,255,0.07)', border:'1px solid rgba(0,217,255,0.22)', borderRadius:14, padding:'12px 18px', fontSize:'0.88rem', color:'#bbb' }}>
+        <strong style={{ color:'#00d9ff' }}>📸 Comment jouer ?</strong>
+        <span style={{ marginLeft:8 }}>Observez l'image de référence, rédigez un prompt de 100 caractères max (en anglais), et découvrez votre score de similarité calculé par Claude Vision !</span>
+      </div>
+
+      {/* ── GRILLE PRINCIPALE ── */}
+      <div className="main-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24 }}>
+
+        {/* Référence */}
+        <div className="card">
+          <h2 className="orb" style={{ color:'#ffd700', fontSize:'1.35rem', marginBottom:18, letterSpacing:1 }}>🎯 Image Référence</h2>
+
+          <div style={{ background:'linear-gradient(135deg,rgba(255,107,53,0.12),rgba(0,217,255,0.12))', borderRadius:12, padding:14, marginBottom:16, border:'1px solid rgba(255,255,255,0.07)' }}>
+            <div className="orb" style={{ color:'#ffd700', fontSize:'0.8rem', marginBottom:6 }}>Défi #{dayNum} — {dateStr}</div>
+            <div style={{ color:'white', fontSize:'0.95rem', lineHeight:1.5 }}>{daily.desc}</div>
+          </div>
+
+          <div style={{ aspectRatio:'1', borderRadius:14, overflow:'hidden', marginBottom:16, border:'2px solid rgba(255,255,255,0.1)' }}>
+            <img src={daily.url} alt="Référence" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+          </div>
+
+          <div style={{ background:'rgba(0,0,0,0.3)', borderRadius:12, padding:14 }}>
+            <p style={{ color:'#888', fontSize:'0.84rem', marginBottom:8 }}>💡 Indices :</p>
+            {daily.hints.map((h, i) => (
+              <div key={i} style={{ color:'#ccc', fontSize:'0.84rem', marginBottom:5, display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ color:'#00d9ff' }}>▸</span>{h}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Création */}
+        <div className="card">
+          <h2 className="orb" style={{ color:'#ffd700', fontSize:'1.35rem', marginBottom:18, letterSpacing:1 }}>✨ Votre Création</h2>
+
+          {/* Prompt */}
+          <div style={{ marginBottom:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+              <span style={{ color:'#888', fontSize:'0.84rem' }}>Votre prompt (anglais recommandé)</span>
+              <span style={{ fontSize:'0.84rem', color: prompt.length >= 90 ? '#ff6b35' : '#888', fontWeight: prompt.length >= 90 ? 600 : 400 }}>
+                {prompt.length}/100
+              </span>
+            </div>
+            <div style={{ background:'rgba(255,215,0,0.07)', border:'1px solid rgba(255,215,0,0.22)', borderRadius:10, padding:'8px 14px', marginBottom:10, fontSize:'0.8rem', color:'#d4b800' }}>
+              ⚠️ Prompt en <strong>anglais</strong> pour de meilleurs résultats avec FLUX.1
+            </div>
+            <textarea
+              value={prompt}
+              onChange={e => setPrompt(e.target.value.slice(0,100))}
+              placeholder={"Describe the scene in English (max 100 chars)...\nEx: astronaut floating in space orange blue nebula"}
+              maxLength={100}
+              rows={4}
+              style={{ width:'100%' }}
+            />
+          </div>
+
+          {/* Bouton */}
+          <button
+            className="btn"
+            onClick={generate}
+            disabled={loading || !prompt.trim() || !tokenOk}
+            style={{
+              width:'100%', padding:'15px', borderRadius:14, fontSize:'1rem', color:'white',
+              background: loading ? 'rgba(255,107,53,0.35)' : 'linear-gradient(135deg,#ff6b35,#ff8c5a)',
+              boxShadow: loading ? 'none' : '0 4px 22px rgba(255,107,53,0.4)',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:12
+            }}
+          >
+            {loading ? <><Spinner size={22} color="white" />{step || 'Génération...'}</> : '🚀 Générer l\'Image'}
+          </button>
+
+          {/* Erreur */}
+          {error && (
+            <div className="fadein" style={{ marginTop:14, background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:12, padding:14, color:'#fca5a5', fontSize:'0.88rem', lineHeight:1.6 }}>
+              ❌ {error}
+            </div>
+          )}
+
+          {/* Skeleton pendant génération */}
+          {loading && !genImg && (
+            <div style={{ marginTop:18, aspectRatio:'1', borderRadius:14, background:'rgba(0,0,0,0.25)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:18 }}>
+              <Spinner size={52} />
+              <p style={{ color:'#666', textAlign:'center', fontSize:'0.88rem' }}>{step}</p>
+            </div>
+          )}
+
+          {/* Image générée */}
+          {genImg && (
+            <div className="fadein" style={{ marginTop:18, aspectRatio:'1', borderRadius:14, overflow:'hidden', border:'2px solid rgba(255,255,255,0.1)' }}>
+              <img src={genImg} alt="Généré" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+            </div>
+          )}
+
+          {/* Score */}
+          {score && (
+            <div className="pop" style={{ marginTop:18 }}>
+              <div style={{ background:'linear-gradient(135deg,rgba(255,215,0,0.18),rgba(255,107,53,0.18))', borderRadius:14, padding:'22px', textAlign:'center', border:`2px solid ${scoreColor(score.score)}`, marginBottom:14 }}>
+                <div className="orb" style={{ fontSize:'5rem', fontWeight:900, color:scoreColor(score.score), lineHeight:1, marginBottom:6 }}>
+                  {score.score}
+                </div>
+                <div style={{ fontSize:'1.4rem', marginBottom:4 }}>{scoreBadge(score.score)}</div>
+                <div style={{ color:'#888', fontSize:'0.9rem' }}>Score de Similarité / 100</div>
+              </div>
+
+              <div style={{ background:'rgba(0,0,0,0.3)', borderRadius:12, padding:16, fontSize:'0.88rem', color:'#ccc', lineHeight:2 }}>
+                <div><strong style={{ color:'white' }}>Composition :</strong> {score.composition}</div>
+                <div><strong style={{ color:'white' }}>Couleurs :</strong> {score.colors}</div>
+                <div><strong style={{ color:'white' }}>Éléments :</strong> {score.elements}</div>
+                <div style={{ marginTop:6, color:'#00d9ff' }}><strong>Conclusion :</strong> {score.overall}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── HISTORIQUE ── */}
+      {history.length > 0 && (
+        <div className="card fadein" style={{ marginTop:24 }}>
+          <h2 className="orb" style={{ color:'#ffd700', fontSize:'1.35rem', marginBottom:16, letterSpacing:1 }}>📊 Historique des Tentatives</h2>
+          <div style={{ display:'flex', flexDirection:'column', gap:10, maxHeight:340, overflowY:'auto' }}>
+            {history.map((e, i) => {
+              const t = new Date(e.ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+              return (
+                <div key={i} style={{ background:'rgba(0,0,0,0.28)', borderRadius:12, padding:'12px 16px', borderLeft:`4px solid ${scoreColor(e.score)}`, display:'flex', alignItems:'center', gap:16 }}>
+                  <div className="orb" style={{ fontSize:'1.7rem', fontWeight:700, color:scoreColor(e.score), minWidth:54, textAlign:'center' }}>{e.score}</div>
+                  <div style={{ flex:1, overflow:'hidden' }}>
+                    <div style={{ fontWeight:500, color:'white', marginBottom:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>"{e.prompt}"</div>
+                    <div style={{ fontSize:'0.82rem', color:'#777', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{e.overall}</div>
+                  </div>
+                  <div style={{ fontSize:'0.78rem', color:'#555', whiteSpace:'nowrap' }}>{t}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
